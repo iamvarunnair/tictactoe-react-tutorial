@@ -11,17 +11,6 @@ function Square(props) {
     );
 }
 
-// This was a controlled class
-// class Square extends React.Component {
-//     render() {
-//         return (
-//             <button className='square' onClick={() => this.props.onClick()}>
-//                 {this.props.value}
-//             </button>
-//         );
-//     }
-// }
-
 /* In React,
     it’s conventional to use on[Event] names for props
     which represent events and
@@ -29,45 +18,36 @@ function Square(props) {
 */
 
 class Board extends React.Component {
-    // constructor(props) {
-    //     super(props);
-    //     this.state = {
-    //         squares: Array(9).fill(null),
-    //         xIsNext: true,
-    //     };
-    // }
     /* So far you setState() update takes the complete state, not one of its keys */
     /* changing state of parent component rerenders parent as well as child components */
     /* if a component doesn't maintain state, but some other component can change its state, it's now a controlled compoenent */
     renderSquare(i) {
         return (
             <Square
+                key={i}
                 value={this.props.squares[i]}
                 onClick={() => this.props.onClick(i)}
             />
         );
     }
-
     render() {
-        return (
-            <div>
-                <div className='board-row'>
-                    {this.renderSquare(0)}
-                    {this.renderSquare(1)}
-                    {this.renderSquare(2)}
+        let i,
+            j,
+            createdBoard = [],
+            index = 0;
+        for (i = 0; i < 3; i++) {
+            let boardRow = [];
+            for (j = 0; j < 3; j++) {
+                boardRow.push(this.renderSquare(index));
+                index++;
+            }
+            createdBoard.push(
+                <div key={i} className='board-row'>
+                    {boardRow}
                 </div>
-                <div className='board-row'>
-                    {this.renderSquare(3)}
-                    {this.renderSquare(4)}
-                    {this.renderSquare(5)}
-                </div>
-                <div className='board-row'>
-                    {this.renderSquare(6)}
-                    {this.renderSquare(7)}
-                    {this.renderSquare(8)}
-                </div>
-            </div>
-        );
+            );
+        }
+        return <div>{createdBoard}</div>;
     }
 }
 
@@ -78,11 +58,20 @@ class Game extends React.Component {
             history: [
                 {
                     squares: Array(9).fill(null),
+                    move: {
+                        col: null,
+                        row: null,
+                    },
                 },
             ],
+            historyOrder: 0,
             stepNumber: 0,
             xIsNext: true,
         };
+        /* historyOrder
+            0: sorting history in ascending order
+            1: sorting history in descending order
+        */
     }
     handleClick(i) {
         const history = this.state.history.slice(0, this.state.stepNumber + 1);
@@ -93,7 +82,12 @@ class Game extends React.Component {
         }
         squares[i] = this.state.xIsNext ? 'X' : 'O';
         this.setState({
-            history: history.concat([{ squares: squares }]),
+            history: history.concat([
+                {
+                    squares: squares,
+                    move: { row: parseInt(i / 3, 10), col: i % 3 },
+                },
+            ]),
             stepNumber: history.length,
             xIsNext: !this.state.xIsNext,
         });
@@ -104,18 +98,66 @@ class Game extends React.Component {
             xIsNext: step % 2 === 0,
         });
     }
+    sortMoves(order) {
+        /* order
+            0: sorting history in ascending order
+            1: sorting history in descending order
+        */
+        if (order !== this.state.historyOrder) {
+            this.setState({
+                history: this.state.history.slice().reverse(),
+                historyOrder: order,
+            });
+            console.log('check 123', this.state.history);
+        }
+    }
     render() {
+        let current;
         const history = this.state.history;
-        const current = history[this.state.stepNumber];
+        if (this.state.historyOrder === 0) {
+            current = history[this.state.stepNumber];
+        } else {
+            current = history[0];
+        }
         const winner = calculateWinner(current.squares);
 
         const moves = history.map((step, move) => {
-            const desc = move ? 'Go to move #' + move : 'Go to game start';
-            return (
-                <li key={move}>
-                    <button onClick={() => this.jumpTo(move)}>{desc}</button>
-                </li>
-            );
+            let desc;
+            if (this.state.historyOrder === 0 && move === 0) {
+                desc = 'Go to game start: (col: 0, row 0)';
+            } else if (
+                this.state.historyOrder &&
+                this.state.stepNumber === move
+            ) {
+                desc = 'Go to game start: (col: 0, row 0)';
+            } else {
+                desc = `Go to move #${
+                    this.state.historyOrder
+                        ? this.state.stepNumber - move
+                        : this.state.stepNumber + 1 - move
+                }: (${step.move.col + 1}, ${step.move.row + 1})`;
+            }
+            if (
+                (this.state.historyOrder === 0 &&
+                    this.state.stepNumber === move) ||
+                (this.state.historyOrder === 1 && move === 0)
+            ) {
+                return (
+                    <li key={move}>
+                        <button onClick={() => this.jumpTo(move)}>
+                            <strong>{desc}</strong>
+                        </button>
+                    </li>
+                );
+            } else {
+                return (
+                    <li key={move}>
+                        <button onClick={() => this.jumpTo(move)}>
+                            {desc}
+                        </button>
+                    </li>
+                );
+            }
         });
         /*
                     key is a special and reserved property in React.
@@ -129,6 +171,8 @@ class Game extends React.Component {
         let status;
         if (winner) {
             status = 'Winner: ' + winner;
+        } else if (this.state.stepNumber === 9) {
+            status = `Opse! It's a draw.`;
         } else {
             status = 'Next Player: ' + (this.state.xIsNext ? 'X' : 'O');
         }
@@ -144,6 +188,21 @@ class Game extends React.Component {
                 <div className='game-info'>
                     <div>{status}</div>
                     <ol>{moves}</ol>
+                </div>
+                <div className='move-order'>
+                    <div>Toggle move order</div>
+                    <ol>
+                        <li key={0}>
+                            <button onClick={() => this.sortMoves(0)}>
+                                Ascending
+                            </button>
+                        </li>
+                        <li key={1}>
+                            <button onClick={() => this.sortMoves(1)}>
+                                Descending
+                            </button>
+                        </li>
+                    </ol>
                 </div>
             </div>
         );
